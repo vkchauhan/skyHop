@@ -14,21 +14,23 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22 # Updated to Node 22 to satisfy Capacitor requirements
+          node-version: 22
 
       - name: Locate Project and Install
         run: |
-          PROJECT_PATH=$(find . -name package.json -not -path "*/node_modules/*" | head -n 1 | xargs dirname)
+          # Find package.json and handle special characters in paths
+          PROJECT_PATH=$(find . -name package.json -not -path "*/node_modules/*" | head -n 1 | xargs -I {} dirname "{}")
           echo "PROJECT_PATH=$PROJECT_PATH" >> $GITHUB_ENV
-          cd $PROJECT_PATH
+          
+          cd "$PROJECT_PATH"
           npm config set strict-ssl false
           npm install --include=dev --legacy-peer-deps
 
-      - name: Build Web App (Skip Type Check)
+      - name: Build Web App
         run: |
-          cd ${{ env.PROJECT_PATH }}
-          # Skip TypeScript errors to ensure the build completes
-          npx vite build || (echo "Vite build failed, trying fallback..." && npm run build --if-present)
+          cd "${{ env.PROJECT_PATH }}"
+          # Build the web assets (creates the 'dist' folder)
+          npx vite build
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -38,18 +40,34 @@ jobs:
 
       - name: Sync Capacitor
         run: |
-          cd ${{ env.PROJECT_PATH }}
-          # If the android folder is missing, we add it
-          if [ ! -d "android" ]; then
+          cd "${{ env.PROJECT_PATH }}"
+          
+          # Force create the android folder if it's missing or incomplete
+          if [ ! -f "android/gradlew" ]; then
+            echo "Android folder or gradlew missing. Adding android platform..."
+            # Remove existing android folder if it's corrupted/empty
+            rm -rf android
             npx cap add android
           fi
+          
+          # Sync web assets to the android project
           npx cap sync android
 
       - name: Build AAB with Gradle
         run: |
-          # Find the android folder and build
-          ANDROID_PATH=$(find . -name "gradlew" -not -path "*/node_modules/*" | head -n 1 | xargs dirname)
-          cd $ANDROID_PATH
+          # Find the android folder safely
+          GRADLEW_PATH=$(find . -name "gradlew" -not -path "*/node_modules/*" | head -n 1)
+          
+          if [ -z "$GRADLEW_PATH" ]; then
+            echo "ERROR: gradlew file not found even after sync!"
+            ls -R
+            exit 1
+          fi
+          
+          ANDROID_PATH=$(dirname "$GRADLEW_PATH")
+          cd "$ANDROID_PATH"
+          
+          echo "Building AAB in $ANDROID_PATH..."
           chmod +x gradlew
           ./gradlew bundleRelease --no-daemon
 
