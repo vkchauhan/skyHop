@@ -15,15 +15,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # cache: 'npm'  <-- REMOVED THIS LINE to fix the error
 
-      - name: Install Dependencies
+      - name: Locate Project and Install
         run: |
+          # This finds where your package.json is located
+          PROJECT_PATH=$(find . -name package.json -not -path "*/node_modules/*" | head -n 1 | xargs dirname)
+          echo "Project found in: $PROJECT_PATH"
+          echo "PROJECT_PATH=$PROJECT_PATH" >> $GITHUB_ENV
+          
+          cd $PROJECT_PATH
           npm config set strict-ssl false
           npm install --include=dev --legacy-peer-deps
 
       - name: Build Web App
-        run: npx vite build
+        run: |
+          cd ${{ env.PROJECT_PATH }}
+          # We use 'npm run build' which is safer than npx
+          npm run build
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -32,11 +40,16 @@ jobs:
           java-version: '17'
 
       - name: Sync Capacitor
-        run: npx cap sync android
+        run: |
+          cd ${{ env.PROJECT_PATH }}
+          # Ensure capacitor is installed and sync
+          npx cap sync android
 
       - name: Build AAB with Gradle
         run: |
-          cd android
+          # Find the android folder
+          ANDROID_PATH=$(find . -name "gradlew" -not -path "*/node_modules/*" | head -n 1 | xargs dirname)
+          cd $ANDROID_PATH
           chmod +x gradlew
           ./gradlew bundleRelease
 
@@ -44,4 +57,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: skyhop-release-aab
-          path: android/app/build/outputs/bundle/release/app-release.aab
+          # This finds the generated AAB regardless of path
+          path: "**/app-release.aab"
