@@ -15,23 +15,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm' # Speeds up future builds
+          # cache: 'npm'  <-- REMOVED THIS LINE to fix the error
 
       - name: Install Dependencies
         run: |
           npm config set strict-ssl false
-          # Using --include=dev ensures vite and build tools are installed
           npm install --include=dev --legacy-peer-deps
 
-      - name: Debug Project Structure
-        run: |
-          echo "Listing files in root:"
-          ls -R
-          echo "Checking for Vite:"
-          npx vite --version
-
       - name: Build Web App
-        # We use 'npx vite build' directly to bypass potential script errors
         run: npx vite build
 
       - name: Setup Java
