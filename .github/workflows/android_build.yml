@@ -1,4 +1,4 @@
-name: Build and Sign Android AAB
+name: Build Signed AAB and APK
 on:
   push:
     branches: [ main, master ]
@@ -44,31 +44,32 @@ jobs:
           fi
           npx cap sync android
 
-      - name: Build Unsigned AAB
+      - name: Build Unsigned AAB and APK
         run: |
           GRADLEW_PATH=$(find . -name "gradlew" -not -path "*/node_modules/*" | head -n 1)
           ANDROID_PATH=$(dirname "$GRADLEW_PATH")
           cd "$ANDROID_PATH"
           chmod +x gradlew
-          ./gradlew bundleRelease --no-daemon
           
-          # Save the path of the unsigned AAB for the next step
-          UNSIGNED_AAB=$(find app/build/outputs/bundle/release -name "*.aab" | head -n 1)
-          echo "UNSIGNED_AAB_PATH=$ANDROID_PATH/$UNSIGNED_AAB" >> $GITHUB_ENV
+          # Build both AAB (bundle) and APK (assemble)
+          ./gradlew bundleRelease assembleRelease --no-daemon
 
-      - name: Sign Android AAB
+      - name: Sign Android Release (AAB & APK)
         id: sign_app
         uses: r0adkll/sign-android-release@v1
         with:
-          releaseDirectory: ${{ env.PROJECT_PATH }}/android/app/build/outputs/bundle/release
+          # This will sign everything in the build outputs folder
+          releaseDirectory: ${{ env.PROJECT_PATH }}/android/app/build/outputs
           signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           alias: ${{ secrets.ANDROID_KEY_ALIAS }}
           keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-      - name: Upload Signed AAB Artifact
+      - name: Upload Signed Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: skyhop-signed-release-aab
-          # The signing action creates a new file, usually with '-signed' in the name
-          path: ${{ steps.sign_app.outputs.signedReleaseFile }}
+          name: skyhop-signed-builds
+          path: |
+            **/app-release.aab
+            **/app-release.apk
+            ${{ steps.sign_app.outputs.signedReleaseFile }}
