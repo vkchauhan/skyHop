@@ -54,13 +54,10 @@ jobs:
 
       - name: Prepare Files for Signing
         run: |
-          # Create a clean folder without special characters
           mkdir -p to_sign
-          
           # Find and copy the AAB and APK to the clean folder
           find . -name "*.aab" -exec cp {} to_sign/ \;
           find . -name "*.apk" -exec cp {} to_sign/ \;
-          
           echo "Files to sign:"
           ls to_sign
 
@@ -68,12 +65,14 @@ jobs:
         id: sign_app
         uses: r0adkll/sign-android-release@v1
         with:
-          # Pointing to the clean folder we just created
           releaseDirectory: to_sign
           signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           alias: ${{ secrets.ANDROID_KEY_ALIAS }}
           keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        env:
+          # This tells the tool where the Android SDK is located on GitHub's servers
+          BUILD_TOOLS_VERSION: "34.0.0"
 
       - name: Upload Signed Artifacts
         uses: actions/upload-artifact@v4
