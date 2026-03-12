@@ -50,16 +50,26 @@ jobs:
           ANDROID_PATH=$(dirname "$GRADLEW_PATH")
           cd "$ANDROID_PATH"
           chmod +x gradlew
-          
-          # Build both AAB (bundle) and APK (assemble)
           ./gradlew bundleRelease assembleRelease --no-daemon
+
+      - name: Prepare Files for Signing
+        run: |
+          # Create a clean folder without special characters
+          mkdir -p to_sign
+          
+          # Find and copy the AAB and APK to the clean folder
+          find . -name "*.aab" -exec cp {} to_sign/ \;
+          find . -name "*.apk" -exec cp {} to_sign/ \;
+          
+          echo "Files to sign:"
+          ls to_sign
 
       - name: Sign Android Release (AAB & APK)
         id: sign_app
         uses: r0adkll/sign-android-release@v1
         with:
-          # This will sign everything in the build outputs folder
-          releaseDirectory: ${{ env.PROJECT_PATH }}/android/app/build/outputs
+          # Pointing to the clean folder we just created
+          releaseDirectory: to_sign
           signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           alias: ${{ secrets.ANDROID_KEY_ALIAS }}
           keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -70,6 +80,5 @@ jobs:
         with:
           name: skyhop-signed-builds
           path: |
-            **/app-release.aab
-            **/app-release.apk
-            ${{ steps.sign_app.outputs.signedReleaseFile }}
+            to_sign/*-signed.aab
+            to_sign/*-signed.apk
